@@ -1,0 +1,155 @@
+#!/bin/bash
+#
+# dynup
+#
+# Updates dyndns and/or noip, should be run from a cron job
+# expects a config file in /etc/dynup.conf
+#
+
+# It's assumed that the script is run in a crontab as root.
+CONF=/etc/dynup.conf
+OLDIPFILE=/var/current_external_ip
+LOGFILE=/var/log/dynup
+
+# Set debug to 1 if you want more verbose entries in the log
+DEBUG=1
+HASUPDATED=0
+
+# If you want to run this as a regular user try this:
+#  CONF=~/noip-upd.conf
+# OLDIPFILE=~/current_external_ip
+# LOGFILE=~/dynup-log.txt
+
+# We log always
+function plog {
+  echo `date +"%F|%T|"`" $1" >> $LOGFILE
+}
+# We log debug logs only if $DEBUG = 1
+function pdebug {
+ if [ $DEBUG == 1 ]
+ then
+   plog $1
+ fi
+}
+
+# Get the contents of config file
+if [ -f "$CONF" ]
+then
+ . "$CONF"
+ pdebug "This is the hosts array: $HOSTS"
+else
+ plog "Missing configuration file $2"
+ exit 1
+fi
+
+# Get IP from canyouseeme.org
+# EXTIP=`curl http://canyouseeme.org 2>/dev/null | grep name\=\"IP\" | grep -Eo "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"`
+
+# CheckIp is probably safer to hit more often
+EXTIP=`curl http://checkip.org 2>/dev/null | grep "Your IP" | grep -Eo "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"`
+pdebug "This is the EXTIP: $EXTIP"
+
+# it's also a neat place to die before we make any mess
+
+function urlencode {
+ echo $(echo "$1" | sed -e 's/%/%25/g' -e 's/ /%20/g' -e 's/!/%21/g' -e 's/"/%22/g' -e 's/#/%23/g' -e 's/\$/%24/g' -e 's/\&/%26/g' -e 's/'\''/%27/g' -e 's/(/%28/g' -e 's/)/%29/g' -e 's/\*/%2a/g' -e 's/,/%2c/g' -e 's/\//%2f/g' -e 's/:/%3a/g' -e 's/;/%3b/g' -e 's//%3e/g' -e 's/?/%3f/g' -e 's/@/%40/g' -e 's/\[/%5b/g' -e 's/\\/%5c/g' -e 's/\]/%5d/g' -e 's/\^/%5e/g' -e 's/_/%5f/g' -e 's/`/%60/g' -e 's/{/%7b/g' -e 's/|/%7c/g' -e 's/}/%7d/g' -e 's/~/%7e/g')
+}
+
+#
+#  The "meat" where we actually update the dynamic DNS entry with our new IP
+#  easily expandable to any system compatible with Dyn.com or NoIP.com
+#  or even if it requires an IP (held in $2 variable) as long as the return
+#  codes are compatible with Dyn or NoIP.
+#
+function update_ip {
+ pdebug "Entering update subroutine. Type = $1"
+ 
+ case $1 in
+ [dD][yY][nN] | [dD][yY][nN][dD][nN][Ss] )
+ UPDURL="http://"`urlencode $4`":"`urlencode $5`"@members.dyndns.org/nic/update?hostname="`urlencode $3`
+ ;;
+ [nN][oO][iI][pP] )
+ UPDURL="http://"`urlencode $4`":"`urlencode $5`"@dynupdate.no-ip.com/nic/update?hostname="`urlencode $3`
+ ;;
+ * )
+ plog "The specified type $TYPE is currently not supported."
+ HOSTPARSE = 0
+ return 0
+ ;;
+ esac
+ 
+ RESPONSE=`curl $UPDURL 2>/dev/null`
+ pdebug "Response NoIP: $RESPONSE"
+ 
+ RCODE=`echo $RESPONSE | awk '{print $1}'`
+ RIP=`echo $RESPONSE | awk '{print $2}'`
+
+ if [ $RCODE == "good" -o $RCODE == "nochg" ]
+ then
+  plog "$RCODE: $HOSTNAME @ $TYPE => IP $EXTIP."
+  HASUPDATED=1
+ else
+  plog "Error $RCODE returned from NO-IP service"
+  # do not die yet, perhaps we can update others
+  return 0
+ fi
+}
+
+if [ ! -f "$OLDIPFILE" ]
+then
+ # there is no old ip file or it's not a regular file
+ if [ -e "$OLDIPFILE" ]
+ then
+  # omg omg it's a same-named nonregular schiznit, i better die
+  plog "The file $OLDIPFILE is not a regular file!"
+  exit 1
+ fi
+ touch "$OLDIPFILE"  # now it exists and is regular if we cannot write there
+      # the script will die which is ok by us
+fi
+if [ ! -w "$OLDIPFILE" ]
+then
+ # Die somewhat gracefully if we cannot write to $OLDIPFILE
+ plog "The file $OLDIPFILE is not accessible to you. Try running the script as superuser."
+ exit 126
+fi
+
+OLDIP=`cat $OLDIPFILE`
+pdebug "Old IP: $OLDIP"
+ 
+if [ ! "$EXTIP" == "$OLDIP" ]
+then
+ HOSTPARSE=0
+ # They're different, let's update
+ for LINE in ${HOSTS[@]} ; do
+  pdebug "LINE from HOSTS: $LINE"
+  ARRAY=`echo $LINE | tr ";" "\n"`
+  for VAR in ${ARRAY[@]} ; do
+   KEY=${VAR%%=*}
+   VALUE=${VAR##*=}
+   declare $KEY=$VALUE
+   pdebug "Declared: $KEY = $VALUE"
+  done
+  HOSTPARSE=1
+  update_ip $TYPE "$EXTIP" "$HOSTNAME" "$LOGIN" "$PASS"
+  done
+ if [ $HOSTPARSE == 0 ]
+ then
+   plog "Invalid or unsupported data in $CONF."
+ fi
+else
+ # They're the same
+ plog "IP address $EXTIP unchanged."
+ exit 0
+fi
+
+# if we didn't die so far we have to wrap up and log sucess/faliure
+if [ $HASUPDATED == 1 ]
+  plog "Updated $OLDIPFILE with IP $EXTIP."
+  echo "$EXTIP" > "$OLDIPFILE"
+else
+  plog "There were errors in all update processes."
+  plog "Will remove $OLDIPFILE to retrigger proces."
+  rm -f $OLDIPFILE
+fi
+

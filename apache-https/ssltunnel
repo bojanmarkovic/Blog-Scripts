@@ -1,0 +1,23 @@
+<VirtualHost *:443>
+    
+    SSLProxyEngine On
+    SSLEngine On
+
+    ServerName host2.mydom.dom
+    ServerAdmin admin@mydom.dom
+    ServerAlias host2 host2.mydom.dom
+    ErrorLog logs/host2.mydom.dom
+    CustomLog logs/host2.mydom.dom
+
+    ProxyPreserveHost On
+    ProxyRequests Off
+
+    SSLCertificateFile      /etc/cert/server.crt
+    SSLCertificateKeyFile   /etc/cert/server.key
+
+    <Location />
+        ProxyPass https://192.168.1.102:443/
+        ProxyPassReverse https://192.168.1.102:443/
+        SSLRequireSSL
+    </Location>
+</VirtualHost>

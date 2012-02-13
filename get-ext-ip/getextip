@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# from canyouseeme.org
+curl http://canyouseeme.org 2>/dev/null | grep name\=\"IP\" | grep -Eo "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
+
+# or alternatively:
+
+# from checkip.org
+curl http://checkip.org 2>/dev/null | grep "Your IP" | grep -Eo "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
+

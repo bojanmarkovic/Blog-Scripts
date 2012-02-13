@@ -1,0 +1,15 @@
+<!-- Add or uncomment following lines in your server.xml -->
+
+<!--APR library loader. Documentation at /docs/apr.html -->
+<Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
+
+<!-- and a HTTPS context. -->
+
+<Connector 
+		port="443" maxThreads="200" SSLProtocol="all"
+		protocol="org.apache.coyote.http11.Http11AprProtocol"
+          scheme="https" secure="true" SSLEnabled="true"
+		SSLPassword="changeit" SSLVerifyClient="optional"
+		SSLCertificateFile="/etc/cert/server.crt"
+		SSLCertificateKeyFile="/etc/cert/server.key"  
+/>

@@ -1,0 +1,10 @@
+#!/bin/bash
+
+APRLIB="~/Download/apr-sources"
+
+cd APRLIB
+
+configure --with-apr=/usr/bin/apr-1-config \
+                --with-java-home=/opt/alfresco/java/ \
+                --with-ssl=yes \
+                --prefix=/opt/alfresco/tomcat

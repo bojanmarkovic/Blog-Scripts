@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# daily maintenance for the dynup script
+#
+# place into: /usr/bin/dynup-daily
+
+OLDIPFILE=/var/current_external_ip
+LOGFILE=/var/log/dynup
+
+# Perhaps there's nothing wrong with a daily update of IP, 
+# I don't think they'll consider it hammering.
+# However it's not exactly neccessary, so unless you faced errors
+# don't uncomment the line below
+#rm -f $OLDIPFILE
+
+NEWLOG=$LOGFILE-`date +"%F"`
+mv -f $LOGFILE $NEWLOG

@@ -1,0 +1,2 @@
+*/10 * * * * root dynup
+01 0 * * * root dynup-daily
